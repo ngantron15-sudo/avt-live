@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Đang kết nối Studio Bóc Băng Video AI 24/7...</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #06080c; color: #f8fafc; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 20px; box-sizing: border-box; }
+    .card { max-width: 430px; width: 100%; background: #0e1015; border: 1.5px solid #22d3ee; border-radius: 16px; padding: 30px 26px; text-align: center; box-shadow: 0 20px 44px rgba(34,211,238,.18); }
+    .spin { width: 40px; height: 40px; border: 3px solid rgba(34,211,238,.25); border-top-color: #22d3ee; border-radius: 50%; margin: 0 auto 16px; animation: sp .75s linear infinite; }
+    @keyframes sp { to { transform: rotate(360deg); } }
+    h1 { font-size: 18px; margin: 0 0 8px; color: #67e8f9; }
+    p { font-size: 13.5px; color: #94a3b8; margin: 0; line-height: 1.55; }
+    a { display: inline-block; margin-top: 16px; color: #22d3ee; font-size: 13.5px; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spin" id="sp"></div>
+    <h1 id="ttl">⚡ Đang mở Studio Bóc Băng Video AI...</h1>
+    <p id="msg">Đường link cố định đang tự động kết nối tới đường hầm trực tuyến mới nhất (1-chạm tự đăng nhập).</p>
+    <a id="manual-link" href="#" style="display:none">Bấm vào đây nếu trình duyệt chưa tự chuyển &rarr;</a>
+  </div>
+  <script>
+    (function () {
+      var GIST_ID = '1062fb7833911b2c6c7549ad303a79a2';
+      var DEFAULT_MAGIC_KEY = '08a85cb364376520e5b2';
+
+      function redirectTo(pointer) {
+        if (!pointer) return false;
+        var magicUrl = (pointer.magic_login_url || '').trim();
+        var baseUrl = (pointer.public_tunnel_url || '').trim().replace(/\/+$/, '');
+        var targetUrl = '';
+        var currentSearch = window.location.search || '';
+        var currentHash = window.location.hash || '';
+
+        if (currentSearch) {
+          if (!baseUrl || baseUrl.indexOf('https://') !== 0) return false;
+          targetUrl = baseUrl + '/' + currentSearch + currentHash;
+        } else if (magicUrl && magicUrl.indexOf('https://') === 0) {
+          targetUrl = magicUrl + currentHash;
+        } else if (baseUrl && baseUrl.indexOf('https://') === 0) {
+          targetUrl = baseUrl + '/?k=' + DEFAULT_MAGIC_KEY + currentHash;
+        } else {
+          return false;
+        }
+
+        var lnk = document.getElementById('manual-link');
+        if (lnk) {
+          lnk.href = targetUrl;
+          lnk.style.display = 'inline-block';
+        }
+        window.location.replace(targetUrl);
+        return true;
+      }
+
+      fetch('https://api.github.com/gists/' + GIST_ID + '?cb=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.files || !d.files['avt_tunnel_pointer.json']) return null;
+          return JSON.parse(d.files['avt_tunnel_pointer.json'].content || '{}');
+        })
+        .catch(function () { return null; })
+        .then(function (ptr) {
+          if (redirectTo(ptr)) return;
+          document.getElementById('ttl').textContent = 'Đang đồng bộ lại đường hầm máy chủ...';
+          document.getElementById('msg').textContent = 'Hệ thống tự phục hồi 24/7 đang cấp phát đường hầm mới. Trang sẽ tự thử lại sau 4 giây.';
+          setTimeout(function () { window.location.reload(); }, 4000);
+        });
+    })();
+  </script>
+</body>
+</html>
