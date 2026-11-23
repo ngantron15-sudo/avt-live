@@ -9,67 +9,194 @@
   <title>Đang kết nối Studio Bóc Băng Video AI 24/7...</title>
   <style>
     body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #06080c; color: #f8fafc; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 20px; box-sizing: border-box; }
-    .card { max-width: 430px; width: 100%; background: #0e1015; border: 1.5px solid #22d3ee; border-radius: 16px; padding: 30px 26px; text-align: center; box-shadow: 0 20px 44px rgba(34,211,238,.18); }
+    .card { max-width: 460px; width: 100%; background: #0e1015; border: 1.5px solid #22d3ee; border-radius: 16px; padding: 30px 26px; text-align: center; box-shadow: 0 20px 44px rgba(34,211,238,.18); }
     .spin { width: 40px; height: 40px; border: 3px solid rgba(34,211,238,.25); border-top-color: #22d3ee; border-radius: 50%; margin: 0 auto 16px; animation: sp .75s linear infinite; }
     @keyframes sp { to { transform: rotate(360deg); } }
     h1 { font-size: 18px; margin: 0 0 8px; color: #67e8f9; }
     p { font-size: 13.5px; color: #94a3b8; margin: 0; line-height: 1.55; }
-    a { display: inline-block; margin-top: 16px; color: #22d3ee; font-size: 13.5px; text-decoration: none; font-weight: 600; }
+    .meta { margin-top: 10px; font-size: 12px; color: #64748b; }
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid #1e293b; background: #161b26; color: #e2e8f0; }
+    .btn-primary { background: linear-gradient(135deg, #22d3ee, #38bdf8); color: #061018; border: none; }
+    .btn:hover { opacity: .92; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="spin" id="sp"></div>
     <h1 id="ttl">⚡ Đang mở Studio Bóc Băng Video AI...</h1>
-    <p id="msg">Đường link cố định đang tự động kết nối tới đường hầm trực tuyến mới nhất (1-chạm tự đăng nhập).</p>
-    <a id="manual-link" href="#" style="display:none">Bấm vào đây nếu trình duyệt chưa tự chuyển &rarr;</a>
+    <p id="msg">Đường link cố định đang kiểm tra sức khỏe đường hầm trực tuyến mới nhất (tự động 1-chạm).</p>
+    <div class="meta" id="metaBox"></div>
+    <div class="actions">
+      <button type="button" class="btn btn-primary" id="retryNowBtn" style="display:none">🔄 Thử kết nối lại ngay</button>
+      <a class="btn" id="lanFallbackBtn" href="#" style="display:none">🏠 Mở qua Wi-Fi nội bộ (LAN)</a>
+      <a class="btn" id="manual-link" href="#" style="display:none">🔗 Thử mở trực tiếp đường hầm</a>
+    </div>
   </div>
   <script>
     (function () {
+      "use strict";
       var GIST_ID = '1062fb7833911b2c6c7549ad303a79a2';
       var DEFAULT_MAGIC_KEY = '08a85cb364376520e5b2';
+      var POINTER_FILE = 'avt_tunnel_pointer.json';
+      var RETRY_SECONDS = 4;
+      var TUNNEL_RE = /^https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com$/;
 
-      function redirectTo(pointer) {
-        if (!pointer) return false;
-        var magicUrl = (pointer.magic_login_url || '').trim();
-        var baseUrl = (pointer.public_tunnel_url || '').trim().replace(/\/+$/, '');
-        var targetUrl = '';
+      var ttlEl = document.getElementById('ttl');
+      var msgEl = document.getElementById('msg');
+      var metaEl = document.getElementById('metaBox');
+      var retryBtn = document.getElementById('retryNowBtn');
+      var lanBtn = document.getElementById('lanFallbackBtn');
+      var manualBtn = document.getElementById('manual-link');
+
+      var retryTimer = null;
+      var countdownTimer = null;
+      var secondsLeft = RETRY_SECONDS;
+      var inFlight = false;
+
+      function clearTimers() {
+        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+      }
+
+      function computeTarget(pointer) {
+        if (!pointer) return { baseUrl: '', targetUrl: '', lanUrl: '', updatedAt: '' };
+        var magicUrl = String(pointer.magic_login_url || '').trim();
+        var baseUrl = String(pointer.public_tunnel_url || '').trim().replace(/\/+$/, '');
+        var lanUrl = String(pointer.lan_url || '').trim();
+        var updatedAt = String(pointer.updated_at || '').trim();
         var currentSearch = window.location.search || '';
         var currentHash = window.location.hash || '';
+        var targetUrl = '';
 
-        if (currentSearch) {
-          if (!baseUrl || baseUrl.indexOf('https://') !== 0) return false;
+        if (!TUNNEL_RE.test(baseUrl)) {
+          baseUrl = '';
+        }
+        if (currentSearch && baseUrl) {
           targetUrl = baseUrl + '/' + currentSearch + currentHash;
         } else if (magicUrl && magicUrl.indexOf('https://') === 0) {
           targetUrl = magicUrl + currentHash;
-        } else if (baseUrl && baseUrl.indexOf('https://') === 0) {
+        } else if (baseUrl) {
           targetUrl = baseUrl + '/?k=' + DEFAULT_MAGIC_KEY + currentHash;
-        } else {
-          return false;
         }
-
-        var lnk = document.getElementById('manual-link');
-        if (lnk) {
-          lnk.href = targetUrl;
-          lnk.style.display = 'inline-block';
-        }
-        window.location.replace(targetUrl);
-        return true;
+        return { baseUrl: baseUrl, targetUrl: targetUrl, lanUrl: lanUrl, updatedAt: updatedAt };
       }
 
-      fetch('https://api.github.com/gists/' + GIST_ID + '?cb=' + Date.now(), { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          if (!d || !d.files || !d.files['avt_tunnel_pointer.json']) return null;
-          return JSON.parse(d.files['avt_tunnel_pointer.json'].content || '{}');
-        })
-        .catch(function () { return null; })
-        .then(function (ptr) {
-          if (redirectTo(ptr)) return;
-          document.getElementById('ttl').textContent = 'Đang đồng bộ lại đường hầm máy chủ...';
-          document.getElementById('msg').textContent = 'Hệ thống tự phục hồi 24/7 đang cấp phát đường hầm mới. Trang sẽ tự thử lại sau 4 giây.';
-          setTimeout(function () { window.location.reload(); }, 4000);
+      function probeFaviconImage(baseUrl, timeoutMs) {
+        return new Promise(function (resolve) {
+          if (!baseUrl) { resolve(false); return; }
+          var settled = false;
+          function done(ok) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(tm);
+            resolve(Boolean(ok));
+          }
+          var img = new Image();
+          var tm = setTimeout(function () { done(false); }, timeoutMs || 5500);
+          img.onload = function () { done(true); };
+          img.onerror = function () { done(false); };
+          img.src = baseUrl.replace(/\/+$/, '') + '/favicon.ico?cb=' + Date.now();
         });
+      }
+
+      function fetchPointerDualSource() {
+        var cb = Date.now();
+        return fetch('https://api.github.com/gists/' + GIST_ID + '?cb=' + cb, { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            if (!d || !d.files || !d.files[POINTER_FILE]) return null;
+            return JSON.parse(d.files[POINTER_FILE].content || '{}');
+          })
+          .catch(function () { return null; })
+          .then(function (ptr) {
+            if (ptr && ptr.public_tunnel_url) return ptr;
+            return fetch('https://gist.githubusercontent.com/ngantron15-sudo/' + GIST_ID + '/raw/' + POINTER_FILE + '?cb=' + cb, { cache: 'no-store' })
+              .then(function (r) { return r.ok ? r.json() : null; })
+              .catch(function () { return null; });
+          });
+      }
+
+      function scheduleRetry(reasonText, info) {
+        clearTimers();
+        secondsLeft = RETRY_SECONDS;
+        ttlEl.textContent = '⏳ Đang chờ đường hầm máy chủ sẵn sàng...';
+        if (retryBtn) retryBtn.style.display = 'inline-flex';
+        if (info && info.lanUrl && info.lanUrl.indexOf('http://') === 0 && lanBtn) {
+          lanBtn.href = info.lanUrl;
+          lanBtn.style.display = 'inline-flex';
+        }
+        if (info && info.targetUrl && manualBtn) {
+          manualBtn.href = info.targetUrl;
+          manualBtn.style.display = 'inline-flex';
+        }
+        if (metaEl && info && info.updatedAt) {
+          metaEl.textContent = 'Cập nhật gần nhất: ' + info.updatedAt;
+        }
+        function renderCountdown() {
+          msgEl.textContent = reasonText + ' Tự động thử lại sau ' + secondsLeft + ' giây...';
+        }
+        renderCountdown();
+        countdownTimer = setInterval(function () {
+          secondsLeft = Math.max(1, secondsLeft - 1);
+          renderCountdown();
+        }, 1000);
+        retryTimer = setTimeout(function () {
+          connectNow(false);
+        }, RETRY_SECONDS * 1000);
+      }
+
+      function connectNow(isManual) {
+        if (inFlight && !isManual) return;
+        clearTimers();
+        inFlight = true;
+        if (isManual) {
+          ttlEl.textContent = '🔄 Đang kiểm tra lại đường hầm mới nhất...';
+          msgEl.textContent = 'Đang đồng bộ từ 2 nguồn Gist và đo tín hiệu /favicon.ico thực tế...';
+        }
+        fetchPointerDualSource()
+          .then(function (ptr) {
+            var info = computeTarget(ptr);
+            if (!info.baseUrl || !info.targetUrl) {
+              inFlight = false;
+              scheduleRetry('Hệ thống tự phục hồi 24/7 đang cấp phát đường hầm mới.', info);
+              return;
+            }
+            if (info.lanUrl && info.lanUrl.indexOf('http://') === 0 && lanBtn) {
+              lanBtn.href = info.lanUrl;
+              lanBtn.style.display = 'inline-flex';
+            }
+            if (manualBtn) {
+              manualBtn.href = info.targetUrl;
+              manualBtn.style.display = 'inline-flex';
+            }
+            if (metaEl && info.updatedAt) {
+              metaEl.textContent = 'Cập nhật gần nhất: ' + info.updatedAt;
+            }
+            return probeFaviconImage(info.baseUrl, 5500).then(function (isAlive) {
+              inFlight = false;
+              if (isAlive) {
+                ttlEl.textContent = '✅ Đường hầm sẵn sàng — đang vào Studio...';
+                msgEl.textContent = 'Đã xác thực tín hiệu sống 200 OK. Tự động chuyển hướng ngay lập tức.';
+                window.location.replace(info.targetUrl);
+                return;
+              }
+              scheduleRetry('Máy chủ đang khởi động lại hoặc đang ngủ — không chuyển vào trang lỗi 530.', info);
+            });
+          })
+          .catch(function () {
+            inFlight = false;
+            scheduleRetry('Kết nối mạng tạm thời gián đoạn.', null);
+          });
+      }
+
+      if (retryBtn) {
+        retryBtn.addEventListener('click', function () {
+          connectNow(true);
+        });
+      }
+
+      connectNow(false);
     })();
   </script>
 </body>
