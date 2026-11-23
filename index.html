@@ -6,6 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1015' stroke='%2322d3ee' stroke-width='4'/%3E%3Cpolygon points='24,18 24,46 48,32' fill='%2322d3ee'/%3E%3C/svg%3E">
   <title>Đang kết nối Studio Bóc Băng Video AI 24/7...</title>
   <style>
     body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #06080c; color: #f8fafc; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 20px; box-sizing: border-box; }
@@ -65,20 +66,23 @@
         var baseUrl = String(pointer.public_tunnel_url || '').trim().replace(/\/+$/, '');
         var lanUrl = String(pointer.lan_url || '').trim();
         var updatedAt = String(pointer.updated_at || '').trim();
-        var currentSearch = window.location.search || '';
         var currentHash = window.location.hash || '';
-        var targetUrl = '';
-
+        var sp = new URLSearchParams(window.location.search || '');
+        sp.delete('cb');
+        var magicKey = DEFAULT_MAGIC_KEY;
+        if (magicUrl && magicUrl.indexOf('k=') !== -1) {
+          try {
+            magicKey = new URL(magicUrl).searchParams.get('k') || DEFAULT_MAGIC_KEY;
+          } catch (_) {}
+        }
+        if (!sp.has('k') && magicKey) {
+          sp.set('k', magicKey);
+        }
+        var qs = sp.toString();
         if (!TUNNEL_RE.test(baseUrl)) {
           baseUrl = '';
         }
-        if (currentSearch && baseUrl) {
-          targetUrl = baseUrl + '/' + currentSearch + currentHash;
-        } else if (magicUrl && magicUrl.indexOf('https://') === 0) {
-          targetUrl = magicUrl + currentHash;
-        } else if (baseUrl) {
-          targetUrl = baseUrl + '/?k=' + DEFAULT_MAGIC_KEY + currentHash;
-        }
+        var targetUrl = baseUrl ? (baseUrl + '/?' + qs + currentHash) : '';
         return { baseUrl: baseUrl, targetUrl: targetUrl, lanUrl: lanUrl, updatedAt: updatedAt };
       }
 
